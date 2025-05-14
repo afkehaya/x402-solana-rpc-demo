@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "rpc-proxy.ts",
   "scripts": {
-    "start": "sh -c 'if [ -z \"$RPC_ENDPOINT\" ]; then export RPC_ENDPOINT=$(pulumi --cwd ../pulumi stack output rpcEndpoint); fi && ts-node rpc-proxy.ts'"
+    "start": "ts-node rpc-proxy.ts"
   },
   "dependencies": {
     "express": "^4.18.2",

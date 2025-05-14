@@ -1,4 +1,5 @@
 import * as pulumi from "@pulumi/pulumi";
+import { Buffer } from "buffer";
 import * as aws from "@pulumi/aws";
 import * as tls from "@pulumi/tls";
 import * as svmkit from "@svmkit/pulumi-svmkit";
@@ -34,24 +35,19 @@ const ami = pulumi.output(
 ).id;
 const securityGroup = new aws.ec2.SecurityGroup("validator-sg", {
   description: "Allow SSH and RPC traffic",
+  // Temporarily allow all inbound for validator (debug); restrict later once verified
   ingress: [
-    // Allow SSH
-    { protocol: "tcp", fromPort: 22, toPort: 22, cidrBlocks: ["0.0.0.0/0"] },
-    // Allow Solana JSON-RPC
-    { protocol: "tcp", fromPort: 8899, toPort: 8899, cidrBlocks: ["0.0.0.0/0"] },
-    // Allow gossip and validator communication on dynamic ports
-    { protocol: "tcp", fromPort: 8000, toPort: 8020, cidrBlocks: ["0.0.0.0/0"] },
-    { protocol: "udp", fromPort: 8000, toPort: 8020, cidrBlocks: ["0.0.0.0/0"] },
-    // Allow repair port (rpcPort+1) for RPC repair protocol
-    // Allow repair port (rpcPort+1) for RPC repair protocol
-    { protocol: "tcp", fromPort: 8900, toPort: 8900, cidrBlocks: ["0.0.0.0/0"] },
-    { protocol: "udp", fromPort: 8900, toPort: 8900, cidrBlocks: ["0.0.0.0/0"] },
+    { protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: ["0.0.0.0/0"] },
   ],
   egress: [{ protocol: "-1", fromPort: 0, toPort: 0, cidrBlocks: ["0.0.0.0/0"] }],
 });
+// Export the Security Group ID so it can be manually modified if needed
+export const validatorSecurityGroupId = securityGroup.id;
 const instance = new aws.ec2.Instance("validator-instance", {
   ami,
   instanceType,
+  // Ensure the instance receives a public IP for SSH and RPC access
+  associatePublicIpAddress: true,
   keyName: keyPair.keyName,
   vpcSecurityGroupIds: [securityGroup.id],
   ebsBlockDevices: [
@@ -100,17 +96,16 @@ new svmkit.validator.Agave(
     environment: { rpcURL: networkInfo.rpcURL[0] },
     keyPairs: { identity: validatorKey.json, voteAccount: voteAccountKey.json },
     flags: {
-      // Disable Solana net-utils port reachability checks (gossip/repair)
-      // Using extraFlags to pass --no-port-checks to the Agave process
-      extraFlags: ["--no-port-checks"],
+      // Disable internal port-reachability checks so the validator can start even if peer ports aren't reachable
+      extraFlags: ["--no-port-check"],
       useSnapshotArchivesAtStartup: "when-newest",
-      fullRpcAPI: true,
+      fullRpcAPI: false,
       rpcPort,
-      rpcBindAddress: "0.0.0.0",
-      privateRPC: false,
+      privateRPC: true,
       onlyKnownRPC: false,
       dynamicPortRange: "8002-8020",
       gossipPort: 8001,
+      rpcBindAddress: "0.0.0.0",
       walRecoveryMode: "skip_any_corrupted_record",
       limitLedgerSize: 50000000,
       blockProductionMethod: "central-scheduler",
@@ -121,6 +116,8 @@ new svmkit.validator.Agave(
       knownValidator: networkInfo.knownValidator,
       expectedGenesisHash: networkInfo.genesisHash,
     },
+    // Don't wait for RPC port health on startup
+    startupPolicy: { waitForRPCHealth: false },
   },
   { dependsOn: [instance] }
 );

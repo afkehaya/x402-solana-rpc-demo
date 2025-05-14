@@ -91,6 +91,19 @@
     ls /var/log | grep -E 'agave|svmkit'
     ```
     Also ensure the AWS Security Group allows inbound TCP/8899.
+    You can manually add the rules via AWS CLI:
+    ```bash
+    # Get the Security Group ID
+    SG_ID=$(pulumi --cwd pulumi stack output validatorSecurityGroupId)
+    # Allow RPC port
+    aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol tcp --port 8899 --cidr 0.0.0.0/0
+    # Allow repair port
+    aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol tcp --port 8900 --cidr 0.0.0.0/0
+    aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol udp --port 8900 --cidr 0.0.0.0/0
+    # Allow gossip port
+    aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol tcp --port 8001 --cidr 0.0.0.0/0
+    aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol udp --port 8001 --cidr 0.0.0.0/0
+    ```
 2. **Configure payment settings**
     Use the TypeScript bootstrap script to:
     - generate (or reuse) a fee-payer keypair at `payer-keypair.json`

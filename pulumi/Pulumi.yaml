@@ -4,3 +4,4 @@
    name: nodejs
    options:
      packagemanager: npm
+secretsProvider: plaintext
