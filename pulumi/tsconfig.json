@@ -1,0 +1,10 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "es2019",
+    "module": "commonjs",
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  },
+  "include": ["index.ts"]
+}
