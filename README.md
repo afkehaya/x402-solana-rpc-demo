@@ -1,159 +1,70 @@
- # x402 Solana RPC Demo
+# x402-solana
 
- This repository demonstrates how to deploy a Solana RPC node on AWS using [SVMKit](https://github.com/abklabs/svmkit) and monetize API access using the [x402](https://x402.org) protocol with on-chain USDC payments.
+Solana-native implementation of the x402 protocol.
 
- ## Prerequisites
- - Node.js >=16
- - npm
- - [Pulumi CLI](https://www.pulumi.com/docs/get-started/install/)
- - AWS credentials configured (e.g., via `~/.aws/credentials`)
- - Solana CLI (optional, for manual token operations)
+## Overview
 
- ## Project Structure
- ```
- x402-solana-rpc-demo/
- ├── README.md
- ├── pulumi/
- │   ├── index.ts         # Pulumi program to launch Agave RPC node on AWS
- │   ├── Pulumi.yaml      # Pulumi project config
- │   ├── package.json     # Node dependencies for Pulumi program
- │   └── tsconfig.json    # TypeScript config
- ├── x402/
- │   ├── config.json      # Pricing & token config ($1 USDC per request)
- │   └── facilitator.ts   # x402 facilitator implementation
- └── server/
-     ├── rpc-proxy.ts     # RPC proxy server with payment validation
-     ├── package.json     # Node dependencies for proxy server
-     └── tsconfig.json    # TypeScript config
- ```
+x402 is a pay-per-request protocol: clients must include a payment on-chain before accessing protected API endpoints.
 
- ## Demo Flow
-1. **Deploy infrastructure on AWS**
-    ```bash
-    cd pulumi
-    npm install
-    pulumi stack init dev
-    pulumi config set aws:region us-east-1
-    pulumi config set solana:network Devnet
-    pulumi config set validator:version 2.1.13-1
-    pulumi config set node:instanceType t3.medium
-    pulumi config set node:instanceArch x86_64
-    pulumi up --yes
-    ```
-    After deployment, retrieve your outputs:
-    ```bash
-    # From the project root, change into the Pulumi directory
-    cd pulumi
-    # Retrieve the RPC endpoint and validator info
-    export RPC_ENDPOINT=$(pulumi stack output rpcEndpoint)
-    export VALIDATOR_IP=$(pulumi stack output validatorPublicIp)
-    # Retrieve the Base64-encoded private key
-    export VALIDATOR_KEY_B64=$(pulumi stack output --cwd pulumi --show-secrets validatorPrivateKeyBase64)
-    # Return to the project root
-    cd ..
-    ```
-    You can SSH into your node for further debugging:
-    ```bash
-    # Decode and save the private key and set permissions
-    echo "$VALIDATOR_KEY_B64" | base64 --decode > validator-key.pem
-    chmod 600 validator-key.pem
-    # SSH into the instance; try 'admin' or 'debian' as username
-    ssh -i validator-key.pem admin@$VALIDATOR_IP  || ssh -i validator-key.pem debian@$VALIDATOR_IP
-    ```
-    Once connected, verify the Agave RPC is listening:
-    ```bash
-    # Check that port 8899 is bound
-    sudo ss -tln | grep 8899
-    # Or test a local JSON-RPC call:
-    curl -X POST http://127.0.0.1:8899 -H "Content-Type: application/json" \
-      -d '{"jsonrpc":"2.0","id":1,"method":"getSlot","params":[]}'
-    ```
-    If it is not listening or errors, inspect the service logs. SVMKit may register the validator under different service names:
-    ```bash
-    sudo journalctl -u agave -f                  # SVMKit might use 'agave'
-    sudo journalctl -u svmkit-validator -f       # or 'svmkit-validator'
-    sudo journalctl -u validator -f             # or simply 'validator'
-    ```
-    If no logs appear, list all services to find the correct unit:
-    ```bash
-    systemctl list-units --type=service --all | grep -E 'agave|svmkit|validator'
-    ```
-    Also check for a running solana-validator process:
-    ```bash
-    ps aux | grep solana-validator
-    ```
-    If SVMKit uses Docker, list containers:
-    ```bash
-    docker ps
-    ```
-    And inspect /var/log for any SVMKit or Agave logs:
-    ```bash
-    ls /var/log | grep -E 'agave|svmkit'
-    ```
-    Also ensure the AWS Security Group allows inbound TCP/8899.
-    You can manually add the rules via AWS CLI:
-    ```bash
-    # Get the Security Group ID
-    SG_ID=$(pulumi --cwd pulumi stack output validatorSecurityGroupId)
-    # Allow RPC port
-    aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol tcp --port 8899 --cidr 0.0.0.0/0
-    # Allow repair port
-    aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol tcp --port 8900 --cidr 0.0.0.0/0
-    aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol udp --port 8900 --cidr 0.0.0.0/0
-    # Allow gossip port
-    aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol tcp --port 8001 --cidr 0.0.0.0/0
-    aws ec2 authorize-security-group-ingress --group-id $SG_ID --protocol udp --port 8001 --cidr 0.0.0.0/0
-    ```
-2. **Configure payment settings**
-    Use the TypeScript bootstrap script to:
-    - generate (or reuse) a fee-payer keypair at `payer-keypair.json`
-    - airdrop SOL (unless skipped)
-    - create a new SPL token mint (6 decimals)
-    - create an associated token account for the payer
-    - mint 1 USDC to the payer’s ATA
-    - generate a new recipient keypair at `recipient-keypair.json`
-    - create an associated token account for the recipient
-    - update `x402/config.json` with the new `mint` and recipient public key
+This repository provides:
+- A facilitator HTTP server (`services/facilitator-server`) that checks for SPL token payments.
+- A demo environment setup script (`scripts/setup-demo-env.ts`).
+- A minimal example client (`examples/paid-rpc-endpoint`).
+- A stub JavaScript SDK (`clients/js-sdk`).
+- Protocol spec (`docs/spec.md`).
+- Placeholder for On-chain Solana program (`programs/facilitator`).
 
-    ```bash
-    cd x402-solana-rpc-demo
-    npm install
-    npm run bootstrap
-    ```
-    To skip the SOL airdrop (if you already have Devnet SOL):
-    ```bash
-    SKIP_AIRDROP=1 npm run bootstrap
-    ```
- 3. **Start the RPC proxy server**
-    ```bash
-    cd server
-    npm install
-    npm start    # automatically fetches RPC_ENDPOINT from Pulumi
-    ```
- 4. **Send payment and query slot**
-    - Send 1 USDC to the `recipient` address on Devnet and obtain the transaction signature (e.g., `TX_SIG`).
-    - Call the endpoint with payment signature:
-      ```bash
-      curl "http://localhost:3000/get-slot?txSig=TX_SIG"
-      ```
-    You should receive a JSON response with the current slot:
-    ```json
-    {"jsonrpc":"2.0","result":12345678,"id":1}
-    ```
-## Bonus: Client Script
+## How x402 on Solana Works
 
-A Node.js script to automate sending $1 USDC and querying the slot.
+1. Client requests metadata at `/.well-known/cdp.json` to retrieve price, mint, and recipient info.
+2. Client creates and submits an SPL token transfer of the required `price` from payer to recipient, optionally adding a memo for the RPC method.
+3. Client requests the protected RPC endpoint with `?txSig=` parameter.
+4. Facilitator server verifies the payment on-chain, and if valid, proxies the RPC request and returns the JSON response.
 
+## Setup Demo Environment
+
+Install dependencies and run the setup script:
 ```bash
-cd client
 npm install
-export PAYER_KEYPAIR_PATH=/path/to/your/payer/keypair.json
-export PROXY_URL=http://localhost:3000
-npm start
+npm run setup:demo
 ```
 
-Ensure `PAYER_KEYPAIR_PATH` points to your Solana wallet keypair file (e.g., `~/.config/solana/id.json`). The script will:
-1. Send 1 USDC to the `recipient` in `x402/config.json`.
-2. Wait for confirmation of the payment transaction.
-3. Call the `/get-slot` endpoint with the transaction signature.
-4. Print out the RPC response JSON.
+This will:
+1. Generate or reuse a payer keypair (`payer-keypair.json`).
+2. Airdrop SOL on devnet.
+3. Create a USDC-like SPL token mint with 6 decimals.
+4. Create associated token accounts for payer and recipient.
+5. Mint initial supply to payer.
+6. Update `services/facilitator-server/src/config.json`.
+
+## Running the Facilitator Server
+
+```bash
+npm run start:server
+```
+
+By default, listens on port `3000`. You can customize via `.env` or environment variables.
+
+## Running the Example Client
+
+```bash
+# Set the path to your payer keypair
+export PAYER_KEYPAIR_PATH=./payer-keypair.json
+npm run example
+```
+
+## Payment Flow Using SPL Tokens
+
+1. The client fetches the payment terms (mint, price, recipient).
+2. The client builds and signs an SPL token transfer transaction for `price * 10^decimals` units.
+3. The client submits the transaction to the Solana network.
+4. The client calls the protected endpoint including `?txSig=...`.
+5. The facilitator checks the transaction on-chain and proxies the request if payment is valid.
+
+## Roadmap
+
+- On-chain Solana program (`programs/facilitator`)
+- $X402 governance token
+- Access token (JWT) support to reduce on-chain queries
+- Decentralized facilitator registry
+- Staking and economic security

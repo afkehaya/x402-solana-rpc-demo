@@ -1,3 +1,0 @@
-encryptionsalt: v1:O9ZZ8ZBZR2I=:v1:HaDwbI82JL+UwtYS:tiTiThCpWuAQEMW/is1pUZZU5Zq/kg==
-config:
-  pulumi:secrets-provider: plaintext

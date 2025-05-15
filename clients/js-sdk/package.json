@@ -1,0 +1,17 @@
+{
+  "name": "@x402/solana-js-sdk",
+  "version": "0.1.0",
+  "description": "JavaScript SDK for x402 Solana protocol",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "license": "AGPL-3.0",
+  "dependencies": {
+    "axios": "^0.21.1"
+  },
+  "devDependencies": {
+    "typescript": "^4.5.4"
+  }
+}

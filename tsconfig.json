@@ -2,10 +2,18 @@
   "compilerOptions": {
     "target": "es2019",
     "module": "commonjs",
+    "rootDir": ".",
+    "outDir": "dist",
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["bootstrap.ts"]
+  "include": [
+    "scripts/**/*.ts",
+    "services/**/*.ts",
+    "clients/**/*.ts",
+    "examples/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
 }

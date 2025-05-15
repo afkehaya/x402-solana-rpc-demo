@@ -1,7 +1,0 @@
- name: x402-solana-rpc-demo
- description: Deploy an Agave Solana RPC node on AWS using SVMKit
- runtime:
-   name: nodejs
-   options:
-     packagemanager: npm
-secretsProvider: plaintext
