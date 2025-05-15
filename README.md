@@ -1,70 +1,114 @@
-# x402-solana
+# x402-solana  
+![License](https://img.shields.io/badge/license-AGPL--3.0-red) ![Status](https://img.shields.io/badge/status-Experimental-orange)
 
-Solana-native implementation of the x402 protocol.
+> Solana-native implementation of the x402 pay-per-request protocol.
 
-## Overview
+## Why x402 on Solana?
+Web APIs are increasingly metered by usage—why not extend that model to blockchain access itself? x402 on Solana allows clients to pay per request in SPL tokens, providing:
+- **Trustless micropayments**: proof of payment is recorded on-chain.
+- **Decentralization**: any facilitator server can verify payments without centralized billing.
+- **Smooth UX**: simple SPL token transfers and HTTP proxying.
 
-x402 is a pay-per-request protocol: clients must include a payment on-chain before accessing protected API endpoints.
+## Features
+- **Facilitator Server** (`services/facilitator-server`): verifies SPL token payments and proxies RPC calls.
+- **Demo Setup Script** (`scripts/setup-demo-env.ts`): bootstraps a USDC-like token, airdrops SOL, creates accounts.
+- **Example Client** (`examples/paid-rpc-endpoint`): TypeScript demo of pay-and-query flow.
+- **JavaScript SDK Stub** (`clients/js-sdk`): starter functions for future SDK.
+- **Protocol Spec** (`docs/spec.md`): HTTP 402 flow, JSON schemas, memo conventions.
+- **On-chain Program Stub** (`programs/facilitator`): placeholder for future Solana contract.
 
-This repository provides:
-- A facilitator HTTP server (`services/facilitator-server`) that checks for SPL token payments.
-- A demo environment setup script (`scripts/setup-demo-env.ts`).
-- A minimal example client (`examples/paid-rpc-endpoint`).
-- A stub JavaScript SDK (`clients/js-sdk`).
-- Protocol spec (`docs/spec.md`).
-- Placeholder for On-chain Solana program (`programs/facilitator`).
+## Requirements
+- Node.js ≥14.x
+- npm or Yarn
+- Solana CLI (`solana`)
+- TypeScript & ts-node (installed via devDependencies)
 
-## How x402 on Solana Works
+## Demo Walkthrough
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-org/x402-solana.git
+   cd x402-solana
+   ```
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+3. **Configure environment**
+   ```bash
+   cp .env.example .env
+   ```
+4. **Bootstrap demo environment**
+   ```bash
+   npm run setup:demo
+   ```
+   - Generates or reuses `payer-keypair.json`
+   - Airdrops SOL on devnet
+   - Creates a USDC-like SPL token mint (6 decimals)
+   - Creates associated token accounts for payer and recipient
+   - Mints initial supply to payer
+   - Updates `services/facilitator-server/src/config.json`
+5. **Start the facilitator server**
+   ```bash
+   npm run start:server
+   ```
+6. **Run the example client**
+   ```bash
+   export PAYER_KEYPAIR_PATH=./payer-keypair.json
+   npm run example
+   ```
 
-1. Client requests metadata at `/.well-known/cdp.json` to retrieve price, mint, and recipient info.
-2. Client creates and submits an SPL token transfer of the required `price` from payer to recipient, optionally adding a memo for the RPC method.
-3. Client requests the protected RPC endpoint with `?txSig=` parameter.
-4. Facilitator server verifies the payment on-chain, and if valid, proxies the RPC request and returns the JSON response.
-
-## Setup Demo Environment
-
-Install dependencies and run the setup script:
-```bash
-npm install
-npm run setup:demo
+## Project Structure
+```
+├── programs/                 # On-chain program stub
+│   └── facilitator/
+├── services/                 # Backend facilitator server
+│   └── facilitator-server/
+│       └── src/              # TypeScript source
+├── clients/                  # SDKs and helpers
+│   └── js-sdk/               # JavaScript SDK stub
+├── examples/                 # Demo clients
+│   └── paid-rpc-endpoint/    # TypeScript example script
+├── scripts/                  # Environment & deployment scripts
+│   └── setup-demo-env.ts     # Demo bootstrap
+├── docs/                     # Protocol specification and docs
+│   └── spec.md
+├── .env.example              # Sample environment variables
+├── .gitignore
+├── LICENSE                   # AGPL v3
+├── README.md
+├── package.json
+└── tsconfig.json
 ```
 
-This will:
-1. Generate or reuse a payer keypair (`payer-keypair.json`).
-2. Airdrop SOL on devnet.
-3. Create a USDC-like SPL token mint with 6 decimals.
-4. Create associated token accounts for payer and recipient.
-5. Mint initial supply to payer.
-6. Update `services/facilitator-server/src/config.json`.
+## How It Works
+1. **Metadata**: client fetches `/.well-known/cdp.json` to read price, token mint, and recipient.
+2. **Payment**: client builds and signs an SPL token transfer of `price * 10^decimals` units.
+3. **Proxy**: client calls protected endpoint with `?txSig=...`. Facilitator verifies on-chain payment.
+4. **Response**: on valid payment, facilitator proxies the RPC call and returns the JSON result.
 
-## Running the Facilitator Server
+## Contributing
+We welcome contributions! Please follow these steps:
+1. Fork the repo and create a feature branch.
+2. Install dependencies and ensure code compiles:
+   ```bash
+   npm install
+   npm run build
+   ```
+3. Run the demo to verify functionality:
+   ```bash
+   npm run setup:demo
+   npm run start:server
+   npm run example
+   ```
+4. Submit a PR with clear description and tests (if applicable).
 
-```bash
-npm run start:server
-```
+**Code style**: formatting is handled by Prettier and ESLint (if configured).
 
-By default, listens on port `3000`. You can customize via `.env` or environment variables.
+## License
+This project is licensed under the [GNU AGPL v3](https://www.gnu.org/licenses/agpl-3.0.html).
 
-## Running the Example Client
-
-```bash
-# Set the path to your payer keypair
-export PAYER_KEYPAIR_PATH=./payer-keypair.json
-npm run example
-```
-
-## Payment Flow Using SPL Tokens
-
-1. The client fetches the payment terms (mint, price, recipient).
-2. The client builds and signs an SPL token transfer transaction for `price * 10^decimals` units.
-3. The client submits the transaction to the Solana network.
-4. The client calls the protected endpoint including `?txSig=...`.
-5. The facilitator checks the transaction on-chain and proxies the request if payment is valid.
-
-## Roadmap
-
-- On-chain Solana program (`programs/facilitator`)
-- $X402 governance token
-- Access token (JWT) support to reduce on-chain queries
-- Decentralized facilitator registry
-- Staking and economic security
+## Resources
+- Solana Docs: https://docs.solana.com
+- SPL Token Program: https://spl.solana.com/token
+- x402 Protocol Whitepaper: *TBD*
+- AGPL v3 License: https://www.gnu.org/licenses/agpl-3.0.html
